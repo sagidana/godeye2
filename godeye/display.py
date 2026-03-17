@@ -40,7 +40,8 @@ def print_packet(pkt: dict, suppressed: bool = False) -> None:
     console.print(line)
 
 
-def print_banner(ifaces: list[str], config_path: str, rule_count: int, dns_servers: list[str]) -> None:
+def print_banner(ifaces: list[str], config_path: str, rule_count: int,
+                 dns_servers: list[str], mapper_type: str = 'netstat') -> None:
     """Print startup banner."""
     console.print()
     console.print('[bold cyan]godeye[/bold cyan] — network traffic monitor', style='bold')
@@ -49,4 +50,6 @@ def print_banner(ifaces: list[str], config_path: str, rule_count: int, dns_serve
     console.print(f'  Rules     : [cyan]{rule_count}[/cyan] loaded')
     if dns_servers:
         console.print(f'  DNS       : [cyan]{", ".join(dns_servers)}[/cyan]')
+    mapper_colour = 'green' if mapper_type == 'eBPF' else 'yellow'
+    console.print(f'  Mapper    : [{mapper_colour}]{mapper_type}[/{mapper_colour}]')
     console.print()

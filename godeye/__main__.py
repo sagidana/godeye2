@@ -85,7 +85,7 @@ def main():
     from godeye.display import print_banner, print_packet
     from godeye.dns_tracker import DNSTracker
     from godeye.potential_rules import POTENTIAL_RULES_PATH, record_potential_rule
-    from godeye.process_mapper import ProcessMapper
+    from godeye.process_mapper import create_process_mapper
     from godeye.rules import RuleEngine
 
     try:
@@ -94,7 +94,7 @@ def main():
         pass
 
     rules = RuleEngine(config_path)
-    process_mapper = ProcessMapper()
+    process_mapper, mapper_type = create_process_mapper()
     dns_tracker = DNSTracker()
     ip_refresher = LocalIPRefresher()
 
@@ -102,9 +102,19 @@ def main():
     if args.interface:
         ifaces = [args.interface]
     else:
-        ifaces = get_if_list()
+        import socket
+        up = []
+        for iface in get_if_list():
+            try:
+                s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
+                s.bind((iface, 0))
+                s.close()
+                up.append(iface)
+            except OSError:
+                pass
+        ifaces = up
 
-    print_banner(ifaces, config_path, rules.rule_count, _read_dns_servers())
+    print_banner(ifaces, config_path, rules.rule_count, _read_dns_servers(), mapper_type)
 
     def handle_packet(pkt):
         process_mapper.prefetch()  # launch netstat immediately at packet arrival
