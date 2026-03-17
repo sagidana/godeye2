@@ -107,6 +107,7 @@ def main():
     print_banner(ifaces, config_path, rules.rule_count, _read_dns_servers())
 
     def handle_packet(pkt):
+        process_mapper.prefetch()  # launch netstat immediately at packet arrival
         try:
             info = extract_packet_info(pkt, process_mapper, dns_tracker, ip_refresher.ips)
         except Exception:
