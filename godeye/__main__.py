@@ -46,6 +46,18 @@ def _read_dns_servers() -> list[str]:
     return servers
 
 
+def _real_home() -> Path:
+    """Return the invoking user's home dir, even when running under sudo."""
+    import pwd
+    sudo_user = os.environ.get('SUDO_USER')
+    if sudo_user:
+        try:
+            return Path(pwd.getpwnam(sudo_user).pw_dir)
+        except KeyError:
+            pass
+    return Path.home()
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog='godeye',
@@ -66,15 +78,20 @@ def main():
         format='[godeye dbg] %(name)s: %(message)s',
     )
 
-    config_path = args.config or str(Path.home() / '.config' / 'godeye' / 'rules.json')
+    config_path = args.config or str(_real_home() / '.config' / 'godeye' / 'rules.json')
 
     # Lazy imports after privilege check so error messages are clean
     from godeye.capture import LocalIPRefresher, extract_packet_info
     from godeye.display import print_banner, print_packet
     from godeye.dns_tracker import DNSTracker
-    from godeye.potential_rules import record_potential_rule
+    from godeye.potential_rules import POTENTIAL_RULES_PATH, record_potential_rule
     from godeye.process_mapper import ProcessMapper
     from godeye.rules import RuleEngine
+
+    try:
+        open(POTENTIAL_RULES_PATH, 'w').close()
+    except OSError:
+        pass
 
     rules = RuleEngine(config_path)
     process_mapper = ProcessMapper()
@@ -96,12 +113,10 @@ def main():
             return
         if info is None:
             return
-        suppressed = rules.is_suppressed(info)
-        if not suppressed:
-            print_packet(info, suppressed=False)
-            record_potential_rule(info)
-        elif args.verbose:
-            print_packet(info, suppressed=True)
+        if rules.is_suppressed(info):
+            return
+        print_packet(info, suppressed=False)
+        record_potential_rule(info)
 
     try:
         from scapy.all import sniff

@@ -17,65 +17,27 @@ def _proto_colour(proto: str) -> str:
 
 
 def print_packet(pkt: dict, suppressed: bool = False) -> None:
-    """Print a packet to the terminal. Dimmed if suppressed."""
-    dim = suppressed
-
+    """Print a packet as a single line."""
     proto = pkt['protocol'].upper()
     proto_colour = _proto_colour(pkt['protocol'])
 
-    local_dom = pkt['local_domain']
-    remote_dom = pkt['remote_domain']
-
-    local_addr = f"{local_dom or pkt['local_ip']}:{pkt['local_port']}"
-    remote_addr = f"{remote_dom or pkt['remote_ip']}:{pkt['remote_port']}"
-
-    local_detail = f" ({local_dom})" if local_dom else ''
-    remote_detail = f" ({remote_dom})" if remote_dom else ''
+    local_host  = pkt['local_domain']  or pkt['local_ip']
+    remote_host = pkt['remote_domain'] or pkt['remote_ip']
+    local_addr  = f"{local_host}:{pkt['local_port']}"
+    remote_addr = f"{remote_host}:{pkt['remote_port']}"
 
     pid = pkt['pid']
-    process_str = pkt['process']
-    if pid != -1:
-        process_display = f"{process_str} (pid: {pid})"
-    else:
-        process_display = process_str
+    process = pkt['process']
+    process_display = f"{process} (pid: {pid})" if pid != -1 else process
 
-    sep = '─' * 60
-
-    def t(text: str, style: str = '') -> Text:
-        s = Text(text, style=f'dim {style}'.strip() if dim else style)
-        return s
-
-    console.print(t(sep, 'dim'))
-
-    # Header line
     line = Text()
-    line.append(f"[{pkt['timestamp']}] ", style='dim' if dim else 'dim white')
-    line.append(f"{proto}  ", style=f"dim {proto_colour}" if dim else proto_colour)
-    line.append(local_addr, style='dim white' if dim else 'white')
-    line.append(' → ', style='dim' if dim else '')
-    line.append(remote_addr, style='dim white' if dim else 'white')
-    if suppressed:
-        line.append('  [suppressed]', style='dim')
+    line.append(f"[{pkt['timestamp']}] ", style='dim white')
+    line.append(f"{proto:<6}", style=proto_colour)
+    line.append(f"{local_addr}", style='white')
+    line.append(' → ', style='')
+    line.append(f"{remote_addr}", style='white')
+    line.append(f"  {process_display}", style='green')
     console.print(line)
-
-    indent = '  '
-    console.print(
-        Text(f"{indent}Process : ", style='dim' if dim else '') +
-        Text(process_display, style='dim green' if dim else 'green')
-    )
-    console.print(
-        Text(f"{indent}Local   : ", style='dim' if dim else '') +
-        Text(f"{pkt['local_ip']:<15}{local_detail}", style='dim white' if dim else 'white')
-    )
-    console.print(
-        Text(f"{indent}Remote  : ", style='dim' if dim else '') +
-        Text(f"{pkt['remote_ip']:<15}{remote_detail}", style='dim white' if dim else 'white')
-    )
-    console.print(
-        Text(f"{indent}Bytes   : ", style='dim' if dim else '') +
-        Text(str(pkt['length']), style='dim' if dim else '')
-    )
-    console.print(t(sep, 'dim'))
 
 
 def print_banner(ifaces: list[str], config_path: str, rule_count: int, dns_servers: list[str]) -> None:
