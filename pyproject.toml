@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "godeye"
+version = "0.1.0"
+description = "Network traffic monitor for Linux — maps packets to processes"
+requires-python = ">=3.10"
+dependencies = [
+    "scapy",
+    "rich",
+]
+
+[project.scripts]
+godeye = "godeye.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["godeye*"]
