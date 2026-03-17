@@ -72,6 +72,7 @@ def main():
     from godeye.capture import LocalIPRefresher, extract_packet_info
     from godeye.display import print_banner, print_packet
     from godeye.dns_tracker import DNSTracker
+    from godeye.potential_rules import record_potential_rule
     from godeye.process_mapper import ProcessMapper
     from godeye.rules import RuleEngine
 
@@ -98,6 +99,7 @@ def main():
         suppressed = rules.is_suppressed(info)
         if not suppressed:
             print_packet(info, suppressed=False)
+            record_potential_rule(info)
         elif args.verbose:
             print_packet(info, suppressed=True)
 
