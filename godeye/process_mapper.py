@@ -321,8 +321,12 @@ class EBPFProcessMapper:
     def prefetch(self) -> None:
         pass  # the kernel keeps the BPF map current — nothing to prefetch
 
-    def lookup(self, proto: str, local_ip: str, local_port: int,
-               remote_ip: str = '', remote_port: int = 0):
+    def lookup(self,
+               proto: str,
+               local_ip: str,
+               local_port: int,
+               remote_ip: str = '',
+               remote_port: int = 0):
         """Return (pid, name, cmdline), or MISS if the socket is unknown."""
         hit = self._cache.get(local_ip, local_port, remote_ip, remote_port)
         if hit:

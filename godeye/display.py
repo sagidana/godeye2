@@ -34,7 +34,12 @@ def print_packet(pkt: dict, suppressed: bool = False) -> None:
             brief = cmdline if len(cmdline) <= 60 else cmdline[:57] + '...'
             process_display += f"  [{brief}]"
     else:
-        process_display = process or 'unknown'
+        if process:
+            process_display = process
+        elif pkt['protocol'] in ('icmp', 'icmpv6', 'igmp'):
+            process_display = 'kernel'
+        else:
+            process_display = 'unknown'
 
     line = Text()
     line.append(f"[{pkt['timestamp']}] ", style='dim white')

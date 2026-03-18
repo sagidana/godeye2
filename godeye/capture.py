@@ -140,7 +140,12 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
     # Determine protocol and ports
     src_port = 0
     dst_port = 0
-    proto = ip_layer.proto if hasattr(ip_layer, 'proto') else 0
+    # IPv4 uses .proto; IPv6 uses .nh (next header)
+    proto = getattr(ip_layer, 'proto', None)
+    if proto is None:
+        proto = getattr(ip_layer, 'nh', 0)
+
+    _PROTO_NAMES = {1: 'icmp', 58: 'icmpv6', 2: 'igmp', 89: 'ospf', 132: 'sctp'}
 
     if pkt.haslayer(TCP):
         tcp = pkt[TCP]
@@ -155,8 +160,7 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
     elif pkt.haslayer(ICMP):
         protocol = 'icmp'
     else:
-        # Use numeric protocol
-        protocol = str(proto)
+        protocol = _PROTO_NAMES.get(proto, str(proto))
 
     # Determine local/remote orientation
     if src_ip in local_ips:
