@@ -1,5 +1,6 @@
 """Scapy sniff wrapper and packet-to-dict extraction."""
 
+import socket
 import threading
 import time
 from datetime import datetime
@@ -16,6 +17,21 @@ def get_local_ips() -> set:
                 ips.add(iface.ip)
             for ip in getattr(iface, 'ips', []):
                 ips.add(str(ip))
+    except Exception:
+        pass
+    # Also read IPv6 addresses from /proc/net/if_inet6
+    try:
+        with open('/proc/net/if_inet6') as f:
+            for line in f:
+                parts = line.split()
+                if parts:
+                    hex_addr = parts[0]
+                    groups = [hex_addr[i:i+4] for i in range(0, 32, 4)]
+                    addr = socket.inet_ntop(
+                        socket.AF_INET6,
+                        socket.inet_pton(socket.AF_INET6, ':'.join(groups)),
+                    )
+                    ips.add(addr)
     except Exception:
         pass
     return ips
@@ -156,10 +172,13 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
 
     # Resolve domains
     local_domain = dns_tracker.lookup(local_ip) or ''
-    remote_domain = dns_tracker.lookup(remote_ip) or ''
+    domain = dns_tracker.lookup(remote_ip) or ''
+
+    src_host = dns_tracker.lookup(src_ip) or src_ip
+    dst_host = dns_tracker.lookup(dst_ip) or dst_ip
 
     # Process lookup
-    pid, comm = process_mapper.lookup(protocol, local_ip, local_port, remote_ip, remote_port)
+    pid, comm, cmdline = process_mapper.lookup(protocol, local_ip, local_port, remote_ip, remote_port)
 
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
@@ -171,8 +190,13 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
         'local_domain':  local_domain,
         'remote_ip':     remote_ip,
         'remote_port':   str(remote_port),
-        'remote_domain': remote_domain,
+        'domain':        domain,
+        'src_host':      src_host,
+        'src_port':      str(src_port),
+        'dst_host':      dst_host,
+        'dst_port':      str(dst_port),
         'process':       comm,
+        'cmdline':       cmdline,
         'pid':           pid,
         'length':        len(pkt),
     }

@@ -27,8 +27,8 @@ def suggest_rule(pkt: dict) -> dict:
 
     Field priority (highest to lowest):
       1. process (comm name)
-      2. remote_domain  — collapsed to base domain
-      3. protocol       — fallback when no remote_domain
+      2. domain         — collapsed to base domain
+      3. protocol       — fallback when no domain
       4. local_ip       — last resort when nothing else is available
     """
     rule: dict = {}
@@ -38,12 +38,12 @@ def suggest_rule(pkt: dict) -> dict:
     if comm and comm not in ('', '-'):
         rule['process'] = re.escape(comm)
 
-    # 2. Remote domain
-    remote_domain = pkt.get('remote_domain', '')
-    if remote_domain:
-        base = _base_domain(remote_domain)
+    # 2. Domain
+    domain = pkt.get('domain', '')
+    if domain:
+        base = _base_domain(domain)
         # Match bare domain or any subdomain: example.com, sub.example.com, …
-        rule['remote_domain'] = r'(^|\.)' + re.escape(base) + r'$'
+        rule['domain'] = r'(^|\.)' + re.escape(base) + r'$'
     else:
         # 3. Protocol as next best identifier
         protocol = pkt.get('protocol', '')

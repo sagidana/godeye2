@@ -21,14 +21,20 @@ def print_packet(pkt: dict, suppressed: bool = False) -> None:
     proto = pkt['protocol'].upper()
     proto_colour = _proto_colour(pkt['protocol'])
 
-    local_host  = pkt['local_domain']  or pkt['local_ip']
-    remote_host = pkt['remote_domain'] or pkt['remote_ip']
-    local_addr  = f"{local_host}:{pkt['local_port']}"
-    remote_addr = f"{remote_host}:{pkt['remote_port']}"
+    local_addr  = f"{pkt['src_host']}:{pkt['src_port']}"
+    remote_addr = f"{pkt['dst_host']}:{pkt['dst_port']}"
 
     pid = pkt['pid']
     process = pkt['process']
-    process_display = f"{process} (pid: {pid})" if pid != -1 else process
+    cmdline = pkt.get('cmdline', '')
+    if pid != -1:
+        process_display = f"{process} (pid: {pid})"
+        if cmdline:
+            # Truncate long cmdlines for readability
+            brief = cmdline if len(cmdline) <= 60 else cmdline[:57] + '...'
+            process_display += f"  [{brief}]"
+    else:
+        process_display = process or 'unknown'
 
     line = Text()
     line.append(f"[{pkt['timestamp']}] ", style='dim white')

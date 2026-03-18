@@ -15,7 +15,7 @@ _WATCH_INTERVAL = 1.0  # seconds between mtime checks
 
 _RULE_FIELDS = [
     'process', 'protocol', 'local_ip', 'local_port', 'local_domain',
-    'remote_ip', 'remote_port', 'remote_domain',
+    'remote_ip', 'remote_port', 'domain',
 ]
 
 _DEFAULT_PATTERN = re.compile('.*', re.IGNORECASE)
@@ -88,9 +88,9 @@ class RuleEngine:
 
     def is_suppressed(self, pkt: dict) -> bool:
         """Return True if the packet matches any rule (should be suppressed)."""
-        log.debug('checking packet: process=%r protocol=%r remote_domain=%r remote_ip=%r',
+        log.debug('checking packet: process=%r protocol=%r domain=%r remote_ip=%r',
                   pkt.get('process'), pkt.get('protocol'),
-                  pkt.get('remote_domain'), pkt.get('remote_ip'))
+                  pkt.get('domain'), pkt.get('remote_ip'))
         with self._lock:
             rules = self._rules
         for i, rule in enumerate(rules):
@@ -126,7 +126,7 @@ class RuleEngine:
             'local_domain':  str(pkt.get('local_domain', '')),
             'remote_ip':     str(pkt.get('remote_ip', '')),
             'remote_port':   str(pkt.get('remote_port', '')),
-            'remote_domain': str(pkt.get('remote_domain', '')),
+            'domain':        str(pkt.get('domain', '')),
         }
         for field, regex in rule.items():
             value = checks.get(field, '')
