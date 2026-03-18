@@ -110,6 +110,53 @@ def _app_protocol(transport: str, sport: int, dport: int, pkt) -> str:
     return table.get(dport) or table.get(sport) or transport
 
 
+def _extract_dns_info(pkt) -> Optional[dict]:
+    """Return DNS details for a DNS packet, or None for non-DNS traffic.
+
+    Returns a dict with:
+      'is_response': bool
+      'query':       queried domain name (str)
+      'answers':     list of (name, ip) for A/AAAA records in responses
+    """
+    try:
+        from scapy.layers.dns import DNS, DNSQR, DNSRR
+    except ImportError:
+        return None
+
+    if not pkt.haslayer(DNS):
+        return None
+
+    dns = pkt[DNS]
+    is_response = bool(dns.qr)
+
+    query = ''
+    if dns.qd and hasattr(dns.qd, 'qname'):
+        raw = dns.qd.qname
+        query = (raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)).rstrip('.')
+
+    answers = []
+    if is_response and dns.an:
+        rr = dns.an
+        while rr is not None and hasattr(rr, 'rrname'):
+            if getattr(rr, 'type', None) in (1, 28):  # A, AAAA
+                try:
+                    import socket as _socket
+                    rdata = rr.rdata
+                    if isinstance(rdata, bytes):
+                        af = _socket.AF_INET if rr.type == 1 else _socket.AF_INET6
+                        ip = _socket.inet_ntop(af, rdata)
+                    else:
+                        ip = str(rdata)
+                    name = rr.rrname
+                    name = (name.decode('utf-8', errors='replace') if isinstance(name, bytes) else str(name)).rstrip('.')
+                    answers.append((name, ip))
+                except Exception:
+                    pass
+            rr = rr.payload if hasattr(rr, 'payload') else None
+
+    return {'is_response': is_response, 'query': query, 'answers': answers}
+
+
 def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Optional[dict]:
     """
     Extract structured info from a scapy packet.
@@ -124,6 +171,9 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
 
     # Feed to DNS tracker regardless
     dns_tracker.process_packet(pkt)
+
+    # Extract DNS details for display
+    dns_info = _extract_dns_info(pkt)
 
     # Determine IP layer
     if pkt.haslayer(IP):
@@ -203,4 +253,5 @@ def extract_packet_info(pkt, process_mapper, dns_tracker, local_ips: set) -> Opt
         'cmdline':       cmdline,
         'pid':           pid,
         'length':        len(pkt),
+        'dns':           dns_info,
     }

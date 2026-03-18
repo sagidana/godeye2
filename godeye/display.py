@@ -58,6 +58,18 @@ def print_packet(pkt: dict, suppressed: bool = False) -> None:
     line.append(f" {direction} ", style='dim white')
     line.append(f"{remote_addr}", style='white')
     line.append(f"  {_process_display(pkt)}", style='green')
+
+    dns = pkt.get('dns')
+    if dns:
+        if dns['is_response']:
+            if dns['answers']:
+                parts = [f"{ip} ({name})" if name != dns['query'] else ip
+                         for name, ip in dns['answers']]
+                line.append(f"  {dns['query']} → {', '.join(parts)}", style='dim cyan')
+        else:
+            if dns['query']:
+                line.append(f"  ? {dns['query']}", style='dim cyan')
+
     console.print(line)
 
 
