@@ -6,6 +6,15 @@ import os
 import sys
 from pathlib import Path
 
+# File logger for main — appends to the same /tmp/godeye.log used by notify.py
+_log = logging.getLogger('godeye.main')
+if not _log.handlers:
+    _fh = logging.FileHandler('/tmp/godeye.log')
+    _fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [main] %(message)s'))
+    _log.addHandler(_fh)
+    _log.setLevel(logging.DEBUG)
+    _log.propagate = False
+
 
 def _check_privileges() -> None:
     """Exit with error if not running as root or without CAP_NET_RAW."""
@@ -69,6 +78,8 @@ def main():
                         help='Path to rules.json (default: ~/.config/godeye/rules.json)')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Also show suppressed/matched packets (dimmed)')
+    parser.add_argument('--notify', action='store_true',
+                        help='Show unfiltered packets as desktop OSD notifications (notify-send or osd_cat)')
     args = parser.parse_args()
 
     _check_privileges()
@@ -87,6 +98,19 @@ def main():
     from godeye.potential_rules import POTENTIAL_RULES_PATH, record_potential_rule
     from godeye.process_mapper import create_process_mapper
     from godeye.rules import RuleEngine
+
+    notifier = None
+    if args.notify:
+        _log.info('--notify flag set; initialising Notifier  euid=%d  SUDO_USER=%s',
+                  os.geteuid(), os.environ.get('SUDO_USER'))
+        from godeye.notify import Notifier
+        notifier = Notifier()
+        if not notifier.available:
+            _log.error('no notification backend found; notifier disabled')
+            print('[godeye] Warning: --notify requires notify-send or osd_cat; neither found.', file=sys.stderr)
+            notifier = None
+        else:
+            _log.info('Notifier ready')
 
     try:
         open(POTENTIAL_RULES_PATH, 'w').close()
@@ -126,8 +150,13 @@ def main():
             return
         if rules.is_suppressed(info):
             return
+        _log.debug('unfiltered packet: proto=%s process=%s remote=%s:%s',
+                   info.get('protocol'), info.get('process'),
+                   info.get('domain') or info.get('remote_ip'), info.get('remote_port'))
         print_packet(info, suppressed=False)
         record_potential_rule(info)
+        if notifier:
+            notifier.notify(info)
 
     try:
         from scapy.all import sniff
