@@ -110,7 +110,7 @@ def _do_init():
     # Detect system package manager and install python-bcc
     PKG_MANAGERS = [
         ('pacman',  ['pacman', '-S', '--noconfirm', 'python-bcc']),
-        ('apt-get', ['apt-get', 'install', '-y', 'python3-bcc']),
+        ('apt-get', ['apt-get', 'install', '-y', 'python3-bpfcc']),
         ('dnf',     ['dnf',     'install', '-y', 'python3-bcc']),
         ('zypper',  ['zypper',  'install', '-y', 'python3-bcc']),
     ]
