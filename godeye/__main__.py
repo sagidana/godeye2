@@ -67,6 +67,103 @@ def _real_home() -> Path:
     return Path.home()
 
 
+def _do_init():
+    import shutil
+    import pathlib
+    import subprocess
+    import sysconfig
+
+    if os.geteuid() != 0:
+        print("Error: 'godeye init' must be run as root.", file=sys.stderr)
+        print("  Try: sudo $(which godeye) init", file=sys.stderr)
+        sys.exit(1)
+
+    # ── 1. /usr/bin/godeye symlink ────────────────────────────────────────────
+    binary = shutil.which('godeye') or str(pathlib.Path(sys.argv[0]).resolve())
+    target = pathlib.Path('/usr/bin/godeye')
+
+    if target.is_symlink():
+        current = target.resolve()
+        if str(current) == str(pathlib.Path(binary).resolve()):
+            print(f"[init] Already set up: {target} -> {binary}")
+        else:
+            print(f"[init] Removing existing symlink: {target} -> {current}")
+            target.unlink()
+            target.symlink_to(binary)
+            print(f"[init] Created: {target} -> {binary}")
+    elif target.exists():
+        print(f"Error: {target} exists and is not a symlink. Remove it manually.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        target.symlink_to(binary)
+        print(f"[init] Created: {target} -> {binary}")
+
+    # ── 2. bcc (BPF Compiler Collection Python bindings) ─────────────────────
+    try:
+        import bcc  # noqa: F401
+        print("[init] bcc already importable — nothing to do.")
+        print("\n[init] Done. You can now run: sudo godeye")
+        return
+    except ImportError:
+        pass
+
+    # Detect system package manager and install python-bcc
+    PKG_MANAGERS = [
+        ('pacman',  ['pacman', '-S', '--noconfirm', 'python-bcc']),
+        ('apt-get', ['apt-get', 'install', '-y', 'python3-bcc']),
+        ('dnf',     ['dnf',     'install', '-y', 'python3-bcc']),
+        ('zypper',  ['zypper',  'install', '-y', 'python3-bcc']),
+    ]
+
+    installed = False
+    for mgr_name, cmd in PKG_MANAGERS:
+        if shutil.which(mgr_name):
+            print(f"[init] Installing bcc via {mgr_name}...")
+            result = subprocess.run(cmd)
+            if result.returncode != 0:
+                print(f"Error: {mgr_name} install failed (exit {result.returncode}).", file=sys.stderr)
+                sys.exit(1)
+            installed = True
+            break
+
+    if not installed:
+        print("Error: no supported package manager found (pacman/apt-get/dnf/zypper).", file=sys.stderr)
+        print("  Install python3-bcc manually, then re-run: sudo godeye init", file=sys.stderr)
+        sys.exit(1)
+
+    # Find where the system python3 put bcc (avoids pyenv intercepting 'python3')
+    result = subprocess.run(
+        ['/usr/bin/python3', '-c', 'import bcc, os; print(os.path.dirname(bcc.__file__))'],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        print("Error: bcc was installed but can't be located via /usr/bin/python3.", file=sys.stderr)
+        print("  Try symlinking it manually into your pyenv site-packages.", file=sys.stderr)
+        sys.exit(1)
+
+    system_bcc = pathlib.Path(result.stdout.strip())
+
+    # Symlink into the currently-running Python's site-packages
+    our_site = pathlib.Path(sysconfig.get_paths()['purelib'])
+    link = our_site / 'bcc'
+
+    if link.is_symlink():
+        if link.resolve() == system_bcc.resolve():
+            print(f"[init] bcc symlink already correct: {link} -> {system_bcc}")
+        else:
+            print(f"[init] Updating bcc symlink: {link} -> {system_bcc}")
+            link.unlink()
+            link.symlink_to(system_bcc)
+    elif link.exists():
+        print(f"Error: {link} exists and is not a symlink. Remove it manually.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        link.symlink_to(system_bcc)
+        print(f"[init] Linked: {link} -> {system_bcc}")
+
+    print("\n[init] Done. You can now run: sudo godeye")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog='godeye',
@@ -80,7 +177,15 @@ def main():
                         help='Also show suppressed/matched packets (dimmed)')
     parser.add_argument('--notify', action='store_true',
                         help='Show unfiltered packets as desktop OSD notifications (notify-send or osd_cat)')
+    parser.add_argument(
+        'action', nargs='?', default=None, choices=['init'],
+        help='init: create /usr/bin/godeye symlink so sudo godeye works across all contexts'
+    )
     args = parser.parse_args()
+
+    if args.action == 'init':
+        _do_init()
+        return
 
     _check_privileges()
 
