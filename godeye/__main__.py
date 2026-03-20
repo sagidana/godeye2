@@ -9,11 +9,14 @@ from pathlib import Path
 # File logger for main — appends to the same /tmp/godeye.log used by notify.py
 _log = logging.getLogger('godeye.main')
 if not _log.handlers:
-    _fh = logging.FileHandler('/tmp/godeye.log')
-    _fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [main] %(message)s'))
-    _log.addHandler(_fh)
-    _log.setLevel(logging.DEBUG)
-    _log.propagate = False
+    try:
+        _fh = logging.FileHandler('/tmp/godeye.log')
+        _fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [main] %(message)s'))
+        _log.addHandler(_fh)
+        _log.setLevel(logging.DEBUG)
+        _log.propagate = False
+    except PermissionError:
+        pass
 
 
 def _check_privileges() -> None:
@@ -74,9 +77,9 @@ def _do_init():
     import sysconfig
 
     if os.geteuid() != 0:
-        print("Error: 'godeye init' must be run as root.", file=sys.stderr)
-        print("  Try: sudo $(which godeye) init", file=sys.stderr)
-        sys.exit(1)
+        import pathlib
+        binary = str(pathlib.Path(sys.argv[0]).resolve())
+        os.execvp('sudo', ['sudo', binary] + sys.argv[1:])
 
     # ── 1. /usr/bin/godeye symlink ────────────────────────────────────────────
     binary = shutil.which('godeye') or str(pathlib.Path(sys.argv[0]).resolve())
@@ -128,7 +131,7 @@ def _do_init():
 
     if not installed:
         print("Error: no supported package manager found (pacman/apt-get/dnf/zypper).", file=sys.stderr)
-        print("  Install python3-bcc manually, then re-run: sudo godeye init", file=sys.stderr)
+        print("  Install python3-bcc manually, then re-run: godeye init", file=sys.stderr)
         sys.exit(1)
 
     # Find where the system python3 put bcc (avoids pyenv intercepting 'python3')
@@ -179,7 +182,7 @@ def main():
                         help='Show unfiltered packets as desktop OSD notifications (notify-send or osd_cat)')
     parser.add_argument(
         'action', nargs='?', default=None, choices=['init'],
-        help='init: create /usr/bin/godeye symlink so sudo godeye works across all contexts'
+        help='init: install dependencies and create /usr/bin/godeye symlink (will prompt for sudo if needed)'
     )
     args = parser.parse_args()
 

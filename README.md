@@ -34,10 +34,10 @@ pip install -e .
 After installing, run the init command once to set up the system symlink and install the `bcc` dependency:
 
 ```bash
-sudo ~/.penv/versions/godeye/bin/godeye init
+godeye init
 ```
 
-> **Note:** `sudo $(which godeye)` will not work if godeye is installed in a pyenv virtualenv, as `which` resolves to the shim rather than the real binary. Use the full path to the binary instead.
+> **Note:** `init` will automatically prompt for your sudo password if needed — no need to prefix it with `sudo` or provide the full binary path.
 
 ## Usage
 
@@ -75,7 +75,7 @@ sudo godeye --notify
 The `init` command sets up godeye's system dependencies:
 
 ```bash
-sudo ~/.penv/versions/godeye/bin/godeye init
+godeye init
 ```
 
 It does two things:
