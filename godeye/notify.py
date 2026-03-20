@@ -90,7 +90,7 @@ class Notifier:
             proto = pkt['protocol'].upper()
             remote_port = pkt.get('remote_port', '')
             direction = '\u2192' if pkt.get('src_port') == pkt.get('local_port') else '\u2190'
-            summary = f"{process}  {direction}  {remote}:{remote_port}"
+            summary = f"{process}  {direction}  {remote}:{remote_port}  [{proto}]"
             body = f"{proto}  {pkt.get('local_ip', '')}:{pkt.get('local_port', '')}"
             _log.debug('dispatching notification: summary=%r  body=%r  backend=%s', summary, body, _BACKEND)
             if _BACKEND == 'notify-send':
@@ -158,7 +158,7 @@ def _send_notify(summary: str, body: str) -> None:
     cmd = [
         'notify-send',
         '--app-name=godeye',
-        '--urgency=low',
+        '--urgency=normal',
         '--expire-time=2000',
         '--icon=network-transmit-receive',
         '--hint=int:transient:1',
