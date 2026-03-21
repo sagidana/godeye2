@@ -12,7 +12,7 @@ import time
 
 log = logging.getLogger('godeye.proc')
 
-_CONN_CACHE_TTL = 30.0   # seconds before a cached 4-tuple entry expires
+_CONN_CACHE_TTL = 120.0  # seconds — must exceed net.ipv4.tcp_fin_timeout (default 60s)
 _PROC_RE        = re.compile(r'\d+/(?P<name>\S+)')
 MISS            = (-1, '', '')
 
@@ -181,30 +181,6 @@ static __always_inline void record_sock(struct sock *sk, u8 proto) {
     conn_ports.update(&nkey, &info);
 }
 
-static __always_inline void delete_sock(struct sock *sk, u8 proto) {
-    u16 family = 0;
-    bpf_probe_read_kernel(&family, sizeof(family), &sk->__sk_common.skc_family);
-    if (family != AF_INET)
-        return;
-
-    struct conn_key_t key = {};
-    bpf_probe_read_kernel(&key.saddr, sizeof(key.saddr), &sk->__sk_common.skc_rcv_saddr);
-    bpf_probe_read_kernel(&key.daddr, sizeof(key.daddr), &sk->__sk_common.skc_daddr);
-    bpf_probe_read_kernel(&key.sport, sizeof(key.sport), &sk->__sk_common.skc_num);
-    u16 dport = 0;
-    bpf_probe_read_kernel(&dport, sizeof(dport), &sk->__sk_common.skc_dport);
-    key.dport = bpf_ntohs(dport);
-    key.proto = proto;
-
-    conn_procs.delete(&key);
-
-    struct nat_key_t nkey = {};
-    nkey.daddr = key.daddr;
-    nkey.sport = key.sport;
-    nkey.dport = key.dport;
-    nkey.proto = proto;
-    conn_ports.delete(&nkey);
-}
 
 static __always_inline void record_sock6(struct sock *sk, u8 proto) {
     u16 family = 0;
@@ -236,30 +212,6 @@ static __always_inline void record_sock6(struct sock *sk, u8 proto) {
     conn_ports6.update(&nkey, &info);
 }
 
-static __always_inline void delete_sock6(struct sock *sk, u8 proto) {
-    u16 family = 0;
-    bpf_probe_read_kernel(&family, sizeof(family), &sk->__sk_common.skc_family);
-    if (family != AF_INET6)
-        return;
-
-    struct conn_key6_t key = {};
-    bpf_probe_read_kernel(key.saddr, 16, sk->__sk_common.skc_v6_rcv_saddr.s6_addr);
-    bpf_probe_read_kernel(key.daddr, 16, sk->__sk_common.skc_v6_daddr.s6_addr);
-    bpf_probe_read_kernel(&key.sport, sizeof(key.sport), &sk->__sk_common.skc_num);
-    u16 dport = 0;
-    bpf_probe_read_kernel(&dport, sizeof(dport), &sk->__sk_common.skc_dport);
-    key.dport = bpf_ntohs(dport);
-    key.proto = proto;
-
-    conn_procs6.delete(&key);
-
-    struct nat_key6_t nkey = {};
-    __builtin_memcpy(nkey.daddr, key.daddr, 16);
-    nkey.sport = key.sport;
-    nkey.dport = key.dport;
-    nkey.proto = proto;
-    conn_ports6.delete(&nkey);
-}
 
 /* TCP: hook connect (outbound) so the map is populated before the first
    packet hits the wire — eliminates the send/recv timing race. */
@@ -280,12 +232,6 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     record_sock(sk, PROTO_TCP);
     record_sock6(sk, PROTO_TCP);
-    return 0;
-}
-int kprobe__tcp_close(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    delete_sock(sk, PROTO_TCP);
-    delete_sock6(sk, PROTO_TCP);
     return 0;
 }
 
